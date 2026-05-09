@@ -1,0 +1,24 @@
+name: AgentHub
+options:
+  bundleIdPrefix: com.example
+  xcodeVersion: "15.0"
+  groupSortPosition: top
+targets:
+  AgentHub:
+    type: application
+    platform: macOS
+    deploymentTarget: 13.0
+    productName: AgentHub
+    bundleId: com.example.AgentHub
+    sources:
+      - Sources/AgentHub
+    resources:
+      - Sources/AgentHub/Resources
+    settings:
+      base:
+        INFOPLIST_FILE: Sources/AgentHub/Info.plist
+        SWIFT_VERSION: 5.9
+        MACOSX_DEPLOYMENT_TARGET: 13.0
+        ENABLE_PREVIEWS: YES
+        SWIFTUI_PREVIEWS_VERSION: 2
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.AgentHub
