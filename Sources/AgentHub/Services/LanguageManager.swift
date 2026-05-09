@@ -48,17 +48,36 @@ struct StringCatalogStore {
     private let catalog: [String: CatalogEntry]
 
     private init() {
-        // Debug: Print bundle path and available resources
-        print("Bundle path: \(Bundle.main.bundlePath)")
-        print("Resource URL: \(Bundle.main.url(forResource: "Localizable", withExtension: "xcstrings")?.absoluteString ?? "NOT FOUND")")
+        var url: URL?
         
-        guard let url = Bundle.main.url(forResource: "Localizable", withExtension: "xcstrings") else {
-            print("ERROR: Could not find Localizable.xcstrings in bundle")
+        // Try bundle first
+        url = Bundle.main.url(forResource: "Localizable", withExtension: "xcstrings")
+        print("Bundle resource URL: \(url?.absoluteString ?? "NOT FOUND")")
+        
+        // Fallback to source directory (for development)
+        if url == nil {
+            let possiblePaths = [
+                // From bundle resources
+                Bundle.main.bundleURL.appendingPathComponent("Contents/Resources/Localizable.xcstrings"),
+                // From source directory
+                URL(fileURLWithPath: "/Users/WJQ/wangjianqi_ai/AgentHub/Sources/AgentHub/Resources/Localizable.xcstrings"),
+            ]
+            for path in possiblePaths {
+                if FileManager.default.fileExists(atPath: path.path) {
+                    url = path
+                    print("Found at fallback path: \(path.path)")
+                    break
+                }
+            }
+        }
+        
+        guard let finalUrl = url else {
+            print("ERROR: Could not find Localizable.xcstrings")
             self.catalog = [:]
             return
         }
         
-        guard let data = try? Data(contentsOf: url) else {
+        guard let data = try? Data(contentsOf: finalUrl) else {
             print("ERROR: Could not read data from Localizable.xcstrings")
             self.catalog = [:]
             return
@@ -75,10 +94,13 @@ struct StringCatalogStore {
     }
 
     func localizedString(forKey key: String, languageCode: String) -> String {
-        if let value = catalog[key]?.localizations[languageCode]?.stringUnit.value {
+        guard let entry = catalog[key], let localizations = entry.localizations else {
+            return key
+        }
+        if let value = localizations[languageCode]?.stringUnit.value {
             return value
         }
-        if let value = catalog[key]?.localizations["en"]?.stringUnit.value {
+        if let value = localizations["en"]?.stringUnit.value {
             return value
         }
         return key
@@ -90,7 +112,7 @@ private struct StringCatalog: Decodable {
 }
 
 private struct CatalogEntry: Decodable {
-    let localizations: [String: CatalogLocalization]
+    let localizations: [String: CatalogLocalization]?
 }
 
 private struct CatalogLocalization: Decodable {
