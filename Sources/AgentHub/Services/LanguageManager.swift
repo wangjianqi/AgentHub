@@ -48,12 +48,29 @@ struct StringCatalogStore {
     private let catalog: [String: CatalogEntry]
 
     private init() {
-        guard let url = Bundle.module.url(forResource: "Localizable", withExtension: "xcstrings"),
-              let data = try? Data(contentsOf: url),
-              let decoded = try? JSONDecoder().decode(StringCatalog.self, from: data) else {
+        // Debug: Print bundle path and available resources
+        print("Bundle path: \(Bundle.main.bundlePath)")
+        print("Resource URL: \(Bundle.main.url(forResource: "Localizable", withExtension: "xcstrings")?.absoluteString ?? "NOT FOUND")")
+        
+        guard let url = Bundle.main.url(forResource: "Localizable", withExtension: "xcstrings") else {
+            print("ERROR: Could not find Localizable.xcstrings in bundle")
             self.catalog = [:]
             return
         }
+        
+        guard let data = try? Data(contentsOf: url) else {
+            print("ERROR: Could not read data from Localizable.xcstrings")
+            self.catalog = [:]
+            return
+        }
+        
+        guard let decoded = try? JSONDecoder().decode(StringCatalog.self, from: data) else {
+            print("ERROR: Could not decode Localizable.xcstrings")
+            self.catalog = [:]
+            return
+        }
+        
+        print("SUCCESS: Loaded \(decoded.strings.count) localization keys")
         self.catalog = decoded.strings
     }
 

@@ -13,7 +13,7 @@ targets:
     sources:
       - Sources/AgentHub
     resources:
-      - Sources/AgentHub/Resources
+      - Sources/AgentHub/Resources/Localizable.xcstrings
     settings:
       base:
         INFOPLIST_FILE: Sources/AgentHub/Info.plist
