@@ -64,6 +64,18 @@ final class AppState: ObservableObject {
         NSPasteboard.general.setString(value, forType: .string)
     }
 
+    func canEditMCPServer(_ server: MCPServerItem) -> Bool {
+        editor.canEditMCPServer(server)
+    }
+
+    func canWriteMCP(to targetTool: ToolKind) -> Bool {
+        editor.canWriteMCP(to: targetTool)
+    }
+
+    var migrationTargets: [ToolKind] {
+        PlatformRegistry.default.migrationTargets
+    }
+
     func setMCPServer(_ server: MCPServerItem, enabled: Bool) {
         do {
             let result = try editor.setMCPServer(server, enabled: enabled)

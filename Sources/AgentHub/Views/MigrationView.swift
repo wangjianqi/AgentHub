@@ -42,14 +42,21 @@ struct MigrationView: View {
                                 .foregroundStyle(.secondary)
 
                             Picker(L("migration.targetPlatform"), selection: $targetTool) {
-                                ForEach(ToolKind.allCases.filter { $0 != .unknown }) { tool in
+                                ForEach(appState.migrationTargets) { tool in
                                     Text(tool.rawValue).tag(tool)
                                 }
                             }
-                            .pickerStyle(.segmented)
+                            .pickerStyle(.menu)
 
                             Toggle(L("migration.writeDirectly"), isOn: $writeToConfig)
                                 .toggleStyle(.switch)
+                                .disabled(!appState.canWriteMCP(to: targetTool))
+
+                            if !appState.canWriteMCP(to: targetTool) {
+                                Text(L("migration.readOnlyTarget"))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
 
                             HStack {
                                 Button {
@@ -88,6 +95,10 @@ struct MigrationView: View {
         }
         .onAppear {
             if selectedServerID == nil { selectedServerID = appState.snapshot.mcpServers.first?.id }
+            if !appState.canWriteMCP(to: targetTool) { writeToConfig = false }
+        }
+        .onChange(of: targetTool) { newValue in
+            if !appState.canWriteMCP(to: newValue) { writeToConfig = false }
         }
     }
 }

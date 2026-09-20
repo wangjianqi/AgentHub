@@ -7,7 +7,7 @@ struct JSONScanner {
             return object
         }
         guard allowJSONC, let text = String(data: data, encoding: .utf8) else { return nil }
-        let stripped = stripJSONCComments(text)
+        let stripped = stripTrailingCommas(stripJSONCComments(text))
         guard let strippedData = stripped.data(using: .utf8) else { return nil }
         return try? JSONSerialization.jsonObject(with: strippedData, options: [.fragmentsAllowed])
     }
@@ -63,11 +63,52 @@ struct JSONScanner {
         return items
     }
 
+    static func parseInstalledPluginRecords(object: Any, tool: ToolKind, scope: ConfigScope, sourcePath: String) -> [PluginItem] {
+        // Kimi Code stores plugin installation state in plugins/installed.json as
+        // { "plugins": [{ "id": "...", "enabled": true, ... }] }. Keep this
+        // parser intentionally narrow so metadata in the managed plugin directory
+        // is not mistaken for separate plugins.
+        let rawPlugins: [Any]
+        if let root = object as? [String: Any], let plugins = root["plugins"] as? [Any] {
+            rawPlugins = plugins
+        } else if let plugins = object as? [Any] {
+            rawPlugins = plugins
+        } else {
+            return []
+        }
+
+        return rawPlugins.compactMap { raw in
+            if let id = raw as? String {
+                return PluginItem(
+                    name: id,
+                    tool: tool,
+                    scope: scope,
+                    path: nil,
+                    sourcePath: sourcePath,
+                    summary: L("summary.configDeclaredPlugin")
+                )
+            }
+            guard let dictionary = raw as? [String: Any] else { return nil }
+            let name = (dictionary["id"] as? String)
+                ?? (dictionary["name"] as? String)
+                ?? (dictionary["displayName"] as? String)
+                ?? L("summary.unnamedPlugin")
+            return PluginItem(
+                name: name,
+                tool: tool,
+                scope: scope,
+                path: nil,
+                sourcePath: sourcePath,
+                summary: prettySnippet(dictionary, maxLength: 220)
+            )
+        }
+    }
+
     static func parsePlugins(object: Any, tool: ToolKind, scope: ConfigScope, sourcePath: String) -> [PluginItem] {
         var items: [PluginItem] = []
         walk(object: object, path: []) { keyPath, value in
             guard let last = keyPath.last else { return }
-            guard last == "plugin" || last == "plugins" else { return }
+            guard last == "plugin" || last == "plugins" || last == "enabledPlugins" else { return }
 
             if let plugins = value as? [String] {
                 for plugin in plugins {
@@ -155,6 +196,9 @@ struct JSONScanner {
         }
         if let command = config["cmd"] as? String {
             return (command, stringArray(from: config["args"]))
+        }
+        if let url = config["httpUrl"] as? String {
+            return (url, [])
         }
         if let url = config["url"] as? String {
             return (url, [])
@@ -263,6 +307,52 @@ struct JSONScanner {
             }
 
             result.append(char)
+        }
+        return result
+    }
+
+    private static func stripTrailingCommas(_ text: String) -> String {
+        let chars = Array(text)
+        var result = ""
+        var index = 0
+        var inString = false
+        var escaped = false
+
+        while index < chars.count {
+            let char = chars[index]
+            if inString {
+                result.append(char)
+                if escaped {
+                    escaped = false
+                } else if char == "\\" {
+                    escaped = true
+                } else if char == "\"" {
+                    inString = false
+                }
+                index += 1
+                continue
+            }
+
+            if char == "\"" {
+                inString = true
+                result.append(char)
+                index += 1
+                continue
+            }
+
+            if char == "," {
+                var lookahead = index + 1
+                while lookahead < chars.count, chars[lookahead].isWhitespace {
+                    lookahead += 1
+                }
+                if lookahead < chars.count, (chars[lookahead] == "}" || chars[lookahead] == "]") {
+                    index += 1
+                    continue
+                }
+            }
+
+            result.append(char)
+            index += 1
         }
         return result
     }

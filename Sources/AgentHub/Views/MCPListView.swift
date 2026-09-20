@@ -59,6 +59,9 @@ struct MCPRow: View {
                         TagView(item.tool.rawValue)
                         TagView(item.scope.localizedTitle)
                         TagView(item.isEnabled ? L("mcp.enabled") : L("mcp.disabled"), systemImage: item.isEnabled ? "checkmark.circle" : "pause.circle")
+                        if !appState.canEditMCPServer(item) {
+                            TagView(L("mcp.readOnly"), systemImage: "lock")
+                        }
                         if let check = appState.checkResult(for: item) {
                             CheckStatusBadge(status: check.status)
                         }
@@ -100,7 +103,7 @@ struct MCPRow: View {
                             Label(item.isEnabled ? L("button.disable") : L("button.enable"), systemImage: item.isEnabled ? "pause.circle" : "play.circle")
                         }
                         .buttonStyle(.borderless)
-                        .disabled(item.scope == .system)
+                        .disabled(!appState.canEditMCPServer(item))
 
                         Button {
                             appState.checkMCPServer(item)

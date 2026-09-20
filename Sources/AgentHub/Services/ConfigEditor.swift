@@ -8,23 +8,47 @@ final class ConfigEditor {
         self.registry = registry
     }
 
+    func canEditMCPServer(_ server: MCPServerItem) -> Bool {
+        let url = URL(fileURLWithPath: resolvePath(server.sourcePath))
+        return ["json", "jsonc", "toml"].contains(url.pathExtension.lowercased()) && server.scope != .system
+    }
+
+    func canWriteMCP(to targetTool: ToolKind) -> Bool {
+        guard let spec = registry.platform(for: targetTool)?.primaryUserConfig else { return false }
+        switch spec.format {
+        case .json, .jsonc, .toml: return true
+        case .yaml: return false
+        }
+    }
+
     func setMCPServer(_ server: MCPServerItem, enabled: Bool) throws -> ConfigEditResult {
         let url = URL(fileURLWithPath: resolvePath(server.sourcePath))
         guard fileManager.fileExists(atPath: url.path) else {
             throw ConfigEditorError.fileNotFound(server.sourcePath)
         }
+        let fileExtension = url.pathExtension.lowercased()
+        guard ["json", "jsonc", "toml"].contains(fileExtension) else {
+            throw ConfigEditorError.unsupportedFormat(fileExtension.isEmpty ? url.lastPathComponent : fileExtension)
+        }
+
         let backup = try backupFile(at: url)
 
-        if url.pathExtension.lowercased() == "toml" {
+        switch fileExtension {
+        case "toml":
             let before = try String(contentsOf: url, encoding: .utf8)
             let after = updateTOMLEnabledState(text: before, serverName: server.name, enabled: enabled)
+            guard after != before else { throw ConfigEditorError.mcpNotFound(server.name) }
             try after.write(to: url, atomically: true, encoding: .utf8)
-        } else {
-            let object = JSONScanner.loadObject(from: url, allowJSONC: true) ?? [String: Any]()
+        case "json", "jsonc":
+            guard let object = JSONScanner.loadObject(from: url, allowJSONC: true) else {
+                throw ConfigEditorError.unsupportedFormat(fileExtension)
+            }
             let update = updateJSONMCPEnabled(object: object, serverName: server.name, enabled: enabled)
             guard update.changed else { throw ConfigEditorError.mcpNotFound(server.name) }
             let data = try JSONSerialization.data(withJSONObject: update.object, options: [.prettyPrinted, .sortedKeys])
             try data.write(to: url, options: .atomic)
+        default:
+            throw ConfigEditorError.unsupportedFormat(fileExtension)
         }
 
         return ConfigEditResult(
@@ -58,6 +82,8 @@ final class ConfigEditor {
             let updated = addJSONMCPServer(object: object, server: server, targetTool: targetTool)
             let data = try JSONSerialization.data(withJSONObject: updated, options: [.prettyPrinted, .sortedKeys])
             try data.write(to: url, options: .atomic)
+        case .yaml:
+            throw ConfigEditorError.unsupportedFormat("yaml")
         }
 
         return ConfigEditResult(
@@ -70,39 +96,80 @@ final class ConfigEditor {
     }
 
     func migrationSnippet(for server: MCPServerItem, targetTool: ToolKind) -> String {
+        let format = registry.platform(for: targetTool)?.primaryUserConfig?.format ?? .json
+        switch format {
+        case .toml:
+            return tomlMigrationSnippet(for: server)
+        case .yaml:
+            return yamlMigrationSnippet(for: server)
+        case .json, .jsonc:
+            return jsonMigrationSnippet(for: server, targetTool: targetTool)
+        }
+    }
+
+    private func tomlMigrationSnippet(for server: MCPServerItem) -> String {
         let escapedName = server.name.replacingOccurrences(of: "\"", with: "\\\"")
         let argsArray = server.args.map { "\"\($0.replacingOccurrences(of: "\"", with: "\\\""))\"" }.joined(separator: ", ")
-        let command = server.command ?? ""
-        let escapedCommand = command.replacingOccurrences(of: "\"", with: "\\\"")
-
-        if targetTool == .codex {
-            var lines = [
-                "[mcp_servers.\(server.name)]",
-                "command = \"\(escapedCommand)\""
-            ]
-            if !server.args.isEmpty { lines.append("args = [\(argsArray)]") }
-            if !server.envKeys.isEmpty {
-                lines.append("[mcp_servers.\(server.name).env]")
-                for key in server.envKeys { lines.append("\(key.replacingOccurrences(of: "header:", with: "")) = \"<FILL_ME>\"") }
-            }
-            return lines.joined(separator: "\n")
-        }
-
-        let container = preferredMCPContainerKey(for: targetTool)
+        let command = (server.command ?? "").replacingOccurrences(of: "\"", with: "\\\"")
         var lines = [
-            "{",
-            "  \"\(container)\": {",
-            "    \"\(escapedName)\": {",
-            "      \"command\": \"\(escapedCommand)\""
+            "[mcp_servers.\(escapedName)]",
+            "command = \"\(command)\""
         ]
-        if !server.args.isEmpty { lines.append("      ,\"args\": [\(argsArray)]") }
+        if !server.args.isEmpty { lines.append("args = [\(argsArray)]") }
         if !server.envKeys.isEmpty {
-            lines.append("      ,\"env\": {")
-            let envLines = server.envKeys.map { "        \"\($0.replacingOccurrences(of: "header:", with: ""))\": \"<FILL_ME>\"" }
-            lines.append(envLines.joined(separator: ",\n"))
-            lines.append("      }")
+            lines.append("[mcp_servers.\(escapedName).env]")
+            for key in server.envKeys {
+                lines.append("\(key.replacingOccurrences(of: "header:", with: "")) = \"<FILL_ME>\"")
+            }
         }
-        lines += ["    }", "  }", "}"]
+        return lines.joined(separator: "\n")
+    }
+
+    private func jsonMigrationSnippet(for server: MCPServerItem, targetTool: ToolKind) -> String {
+        let container = preferredMCPContainerKey(for: targetTool)
+        var config: [String: Any] = [:]
+        if let command = server.command {
+            if command.hasPrefix("http://") || command.hasPrefix("https://") {
+                config[targetTool == .qwenCode ? "httpUrl" : "url"] = command
+            } else {
+                config["command"] = command
+            }
+        }
+        if !server.args.isEmpty { config["args"] = server.args }
+        if !server.envKeys.isEmpty {
+            var env: [String: String] = [:]
+            for key in server.envKeys where !key.hasPrefix("header:") { env[key] = "<FILL_ME>" }
+            if !env.isEmpty { config["env"] = env }
+            var headers: [String: String] = [:]
+            for key in server.envKeys where key.hasPrefix("header:") {
+                headers[String(key.dropFirst("header:".count))] = "<FILL_ME>"
+            }
+            if !headers.isEmpty { config["headers"] = headers }
+        }
+        let root: [String: Any] = [container: [server.name: config]]
+        guard let data = try? JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys]),
+              let text = String(data: data, encoding: .utf8) else { return "{}" }
+        return text
+    }
+
+    private func yamlMigrationSnippet(for server: MCPServerItem) -> String {
+        var lines = ["mcp_servers:", "  - name: \(server.name)"]
+        if let command = server.command {
+            if command.hasPrefix("http://") || command.hasPrefix("https://") {
+                lines.append("    url: \(command)")
+            } else {
+                lines.append("    command: \(command)")
+            }
+        }
+        if !server.args.isEmpty {
+            lines.append("    args:")
+            lines.append(contentsOf: server.args.map { "      - \($0)" })
+        }
+        let envKeys = server.envKeys.filter { !$0.hasPrefix("header:") }
+        if !envKeys.isEmpty {
+            lines.append("    env:")
+            lines.append(contentsOf: envKeys.map { "      \($0): <FILL_ME>" })
+        }
         return lines.joined(separator: "\n")
     }
 
@@ -182,12 +249,26 @@ final class ConfigEditor {
         let containerKey = preferredMCPContainerKey(for: targetTool)
         var container = (root[containerKey] as? [String: Any]) ?? [:]
         var serverConfig: [String: Any] = [:]
-        if let command = server.command { serverConfig["command"] = command }
+        if let command = server.command {
+            if command.hasPrefix("http://") || command.hasPrefix("https://") {
+                serverConfig[targetTool == .qwenCode ? "httpUrl" : "url"] = command
+            } else {
+                serverConfig["command"] = command
+            }
+        }
         if !server.args.isEmpty { serverConfig["args"] = server.args }
         if !server.envKeys.isEmpty {
             var env: [String: String] = [:]
-            for key in server.envKeys { env[key.replacingOccurrences(of: "header:", with: "")] = "<FILL_ME>" }
-            serverConfig["env"] = env
+            var headers: [String: String] = [:]
+            for key in server.envKeys {
+                if key.hasPrefix("header:") {
+                    headers[String(key.dropFirst("header:".count))] = "<FILL_ME>"
+                } else {
+                    env[key] = "<FILL_ME>"
+                }
+            }
+            if !env.isEmpty { serverConfig["env"] = env }
+            if !headers.isEmpty { serverConfig["headers"] = headers }
         }
         serverConfig["disabled"] = false
         container[server.name] = serverConfig
@@ -272,12 +353,14 @@ enum ConfigEditorError: LocalizedError {
     case fileNotFound(String)
     case mcpNotFound(String)
     case unsupportedTarget(String)
+    case unsupportedFormat(String)
 
     var errorDescription: String? {
         switch self {
         case .fileNotFound(let path): return L("error.fileNotFound", path)
         case .mcpNotFound(let name): return L("error.mcpNotFound", name)
         case .unsupportedTarget(let name): return L("error.unsupportedTarget", name)
+        case .unsupportedFormat(let format): return L("error.unsupportedFormat", format)
         }
     }
 }

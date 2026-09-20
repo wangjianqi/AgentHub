@@ -26,15 +26,18 @@ struct RiskAnalyzer {
     }
 
     private static func analyzeMissingTools(_ installations: [ToolInstallation]) -> [RiskIssue] {
+        // Registry coverage is intentionally broad. A platform simply not being
+        // installed is not a risk. Only flag the ambiguous case where known
+        // configuration/Skill artifacts exist but no CLI or app installation was found.
         installations.compactMap { item in
-            guard item.status == .missing else { return nil }
+            guard item.status == .unknown, let evidence = item.executablePath else { return nil }
             return RiskIssue(
                 severity: .info,
-                title: L("risk.missingExecutable.title"),
-                message: L("risk.missingExecutable.message", item.executableName),
+                title: L("risk.orphanedConfig.title"),
+                message: L("risk.orphanedConfig.message", item.tool.rawValue, evidence),
                 tool: item.tool,
-                sourcePath: nil,
-                relatedName: item.executableName
+                sourcePath: evidence,
+                relatedName: item.tool.rawValue
             )
         }
     }

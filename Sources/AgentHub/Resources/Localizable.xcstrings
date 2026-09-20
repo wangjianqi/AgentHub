@@ -901,6 +901,23 @@
         }
       }
     },
+    "error.unsupportedFormat" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Direct editing is not supported for configuration format: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂不支持直接编辑该配置格式：%@"
+          }
+        }
+      }
+    },
     "error.unsupportedTarget" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1445,6 +1462,23 @@
         }
       }
     },
+    "mcp.readOnly" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read only"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只读"
+          }
+        }
+      }
+    },
     "mcp.section.subtitle" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1781,6 +1815,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "迁移片段预览"
+          }
+        }
+      }
+    },
+    "migration.readOnlyTarget" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This platform currently supports migration snippet generation only; direct writing is disabled."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "该平台当前仅支持生成迁移配置片段，已禁用直接写入。"
           }
         }
       }
@@ -2512,6 +2563,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未发现可执行文件"
+          }
+        }
+      }
+    },
+    "risk.orphanedConfig.message" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ configuration or Skill data was found at %@, but no known CLI or macOS app installation was detected."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 %@ 的 %@ 发现了配置或 Skill 数据，但未检测到已知 CLI 或 macOS App 安装。"
+          }
+        }
+      }
+    },
+    "risk.orphanedConfig.title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Configuration found without detected installation"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "发现配置但未检测到安装"
           }
         }
       }

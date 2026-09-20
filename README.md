@@ -7,7 +7,14 @@ AgentHub 是一个原生 macOS SwiftUI 本地管理工具，用于统一查看�
 ## 已支持平台
 
 - Claude Code
-- Codex
+- OpenAI Codex
+- Tencent CodeBuddy
+- Alibaba Qoder (`QODER_CONFIG_DIR`)
+- Qoder CN / 通义灵码兼容目录
+- ByteDance TRAE / TraeCode
+- Qwen Code
+- Moonshot Kimi Code
+- Baidu Comate
 - OpenClaw
 - OpenCode / opencode
 
@@ -36,7 +43,7 @@ AgentHub 是一个原生 macOS SwiftUI 本地管理工具，用于统一查看�
 
 | 类型 | 说明 |
 |---|---|
-| 安装状态 | 通过 PATH 检测 `claude`、`codex`、`openclaw`、`opencode` |
+| 安装状态 | 综合检测 CLI、常见 macOS `.app`、工具专属配置痕迹；避免仅依赖 PATH |
 | MCP Servers | 解析 JSON / JSONC / TOML 配置中的 `mcpServers`、`mcp_servers`、`mcp`、`servers` |
 | Skills | 扫描 `SKILL.md` |
 | Agents | 扫描 agents 目录中的 md/json/jsonc/yaml/toml/txt 文件 |
@@ -62,6 +69,78 @@ AgentHub 是一个原生 macOS SwiftUI 本地管理工具，用于统一查看�
 - `~/.codex/config.toml`
 - `/etc/codex/config.toml`
 - `.codex/config.toml`
+- `~/.agents/skills`
+- `.agents/skills`
+- `/etc/codex/skills`
+
+### Tencent CodeBuddy
+
+- `${CODEBUDDY_CONFIG_DIR:-~/.codebuddy}/.mcp.json`（推荐）
+- `${CODEBUDDY_CONFIG_DIR:-~/.codebuddy}/mcp.json`（旧版兼容）
+- `~/.codebuddy.json`（更旧版兼容）
+- `${CODEBUDDY_CONFIG_DIR:-~/.codebuddy}/skills`
+- `${CODEBUDDY_CONFIG_DIR:-~/.codebuddy}/agents`
+- `.mcp.json` / `mcp.json`
+- `.codebuddy/skills`
+- `.codebuddy/agents`
+
+### Alibaba Qoder
+
+- `${QODER_CONFIG_DIR:-~/.qoder}/settings.json`
+- `${QODER_CONFIG_DIR:-~/.qoder}/skills`
+- `${QODER_CONFIG_DIR:-~/.qoder}/agents`
+- `.qoder/settings.json`
+- `.qoder/settings.local.json`
+- `.qoder/skills`
+- `.qoder/agents`
+
+### Qoder CN / 通义灵码
+
+- CLI：`qodercn`（兼容检测旧 `qoderclicn` 名称）
+- `${QODERCN_CONFIG_DIR:-~/.qoder-cn}/settings.json`
+- `${QODERCN_CONFIG_DIR:-~/.qoder-cn}/skills`
+- `${QODERCN_CONFIG_DIR:-~/.qoder-cn}/agents`
+- `~/.lingma/skills`
+- `.qoder/skills`
+- `.lingma/skills`
+
+### ByteDance TRAE / TraeCode
+
+- `~/.trae/traecli.toml`
+- `~/Library/Application Support/trae_cli/trae_cli.yaml`
+- `.trae/mcp.json`
+- `~/.traecli/skills`
+- `~/.trae-cn/skills`
+- `.traecli/skills`
+- `.trae/skills`
+- `.traecli/agents`
+
+### Qwen Code
+
+- `${QWEN_HOME:-~/.qwen}/settings.json`
+- `${QWEN_HOME:-~/.qwen}/skills`
+- `.qwen/settings.json`
+- `.qwen/skills`
+- macOS system settings under `/Library/Application Support/QwenCode/`
+
+### Kimi Code
+
+- `${KIMI_CODE_HOME:-~/.kimi-code}/config.toml`
+- `${KIMI_CODE_HOME:-~/.kimi-code}/mcp.json`
+- `${KIMI_CODE_HOME:-~/.kimi-code}/skills`
+- `${KIMI_CODE_HOME:-~/.kimi-code}/agents`
+- `${KIMI_CODE_HOME:-~/.kimi-code}/plugins/installed.json`
+- `~/.agents/skills` / `~/.agents/agents`
+- `.kimi-code/*` / `.agents/*`
+
+### Baidu Comate
+
+- `.comate/mcp.json`
+- `~/.comate/skills`
+- `.comate/skills`
+- `.agents/skills`
+
+> Comate 4.0 的公开资料已确认 Skills 目录；当前不假设一个未公开稳定的 Comate CLI 可执行名，安装状态优先通过 macOS App 和配置/资源扫描判断。
 
 ### OpenClaw
 
@@ -156,3 +235,28 @@ For formatted strings:
 ```swift
 L("message.example", value)
 ```
+
+
+## Platform coverage (2026-09)
+
+AgentHub scans both CLI and common macOS application installations, plus user/project configuration artifacts. Current registry coverage includes:
+
+- Claude Code
+- OpenAI Codex (including `~/.agents/skills`, project `.agents/skills`, and `/etc/codex/skills`)
+- Tencent CodeBuddy (`CODEBUDDY_CONFIG_DIR`, MCP, Skills, sub-agents, hooks/plugins declared in settings)
+- Alibaba Qoder (`QODER_CONFIG_DIR`)
+- Qoder CN / Lingma compatibility directories (`QODERCN_CONFIG_DIR`, current CLI `qodercn`)
+- ByteDance TRAE / TraeCode (CLI + IDE, TOML/JSON and legacy YAML MCP configuration)
+- Qwen Code (`QWEN_HOME`, MCP, Skills, macOS system settings)
+- Moonshot Kimi Code (`KIMI_CODE_HOME`, MCP, directory/flat-file Skills, installed plugin records)
+- Baidu Comate (macOS App, project MCP, native/shared Agent Skills)
+- OpenClaw
+- OpenCode
+
+### Scanner behavior
+
+- Installation detection checks known CLI executables first, then common `/Applications` and `~/Applications` app bundles.
+- If a known tool-specific configuration file remains but no CLI/App is found, the installation state is reported as ambiguous instead of installed. Shared Skill roots such as `~/.agents/skills` are deliberately not used as installation evidence.
+- YAML MCP configuration is scan-only. AgentHub will not rewrite YAML files, preventing accidental format corruption.
+- JSONC scanning supports comments and trailing commas.
+- Kimi Code flat `skills/<name>.md` Skills are recognized only at the Skill root; nested Markdown references are not misclassified.
